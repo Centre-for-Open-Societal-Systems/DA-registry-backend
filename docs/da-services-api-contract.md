@@ -3,15 +3,22 @@
 For the DA Services (Frappe) team. How DA Services sends a Development Agent to
 the DA Registry (OpenG2P) and reads it back.
 
-- **Write:** after a DA is approved in DA Services, push it to the registry.
-  The registry validates it, checks the Fayda ID is unique, approves it
-  automatically (the approval already happened in DA Services) and gives it a
-  DA-ID.
-- **Read:** look DAs up by DA-ID, Fayda ID or name (DCI search), for example to
-  check for a duplicate before approval, or to fetch the DA-ID after a push.
+DA Services talks to the registry in two ways:
 
-Both calls are server-to-server, from DA Services to the registry's partner
-API. The staging UI never calls the registry directly.
+- **Partner API** (this document), server to server, signed by DA Services:
+  - **Bulk import:** push each DA from the Admin's Excel file. The registry
+    validates it, checks the Fayda ID is unique, approves it automatically
+    and gives it a DA-ID.
+  - **Status of a push**, and **DCI search** to look DAs up by DA-ID, Fayda ID
+    or name.
+- **Staff API**, with the signed-in user's Keycloak token: the single DA form,
+  approving or rejecting a new DA, search and view, and a DA editing their
+  profile (change request). Roles and Woreda scope are checked by the
+  registry, and approvals happen in the registry. This flow will be
+  documented in a separate section.
+
+The browser never calls the registry directly; the Frappe backend makes
+these calls.
 
 | | Local stack | Deployment |
 |---|---|---|
