@@ -1,1 +1,148 @@
-# DA-registry-backend
+# DA Registry (OpenG2P)
+
+The Development Agent (DA) Registry for OAN Ethiopia, built on the OpenG2P
+registry platform. It holds the profile of every Development Agent: name,
+Fayda ID, personal details, contact, education and position, and posting
+(Region / Zone / Woreda / Kebele). DA workflow lives in the separate Frappe DA
+Services, which read DA records from this registry.
+
+This repository only adds the DA domain on top of the platform images; it
+follows the same build model as the farmer registry.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `da-extension/` | Python extension: DA model, domain rules, ID prefix, file-import enricher, seed metadata, Jinja templates |
+| `Dockerfile` | One build with targets `staff-api`, `partner-api`, `celery`, `staff-ui`, `db-seed` |
+| `docker/patches/` | Fixes applied to the pinned platform images at build time |
+| `docker/db-seed/` | Synthetic DA loader (local only) |
+| `docker/local-dev/` | Config for the local stack (Keycloak, IAM, AWE, ID generator, Postgres, geo seed) |
+| `import-templates/` | Blank CSV and Excel templates for bulk import |
+| `docker-compose.yml` | Self-contained local stack |
+| `helm/openg2p-da-registry/` | Helm overlay on the `openg2p-registry` chart (not deployable yet, see TODOs) |
+| `Jenkinsfile` | CI: build and push images only; no deploy stage yet |
+
+## The DA register
+
+| | |
+|---|---|
+| Register mnemonic | `DA` |
+| Tables | `g2p_register_das`, `g2p_register_history_das`, `g2p_intake_form_das` |
+| DA-ID | `functional_record_id`, `DA-` + 10 digits, from the ID generator pool `da`, on approval |
+| Fayda ID (FIN) | `foundational_id`, 12 digits, required |
+| Duplicate check | Fayda ID, exact match (shown to the approver) |
+| Data in | Web intake form (one DA); file import, CSV or `.xlsx` (many DAs) |
+| Data out | Partner API DCI search, each record under `da_details` (`templates/openg2p_da_to_dci.json.j2`) |
+
+Fields, code lists and validation rules: see the design document
+(`DA_Registry_Design_*.pdf`). The server-side rules are in
+`register_domain/services/validation_rules.py` and apply to every entry path.
+
+## Bulk import (CSV / Excel)
+
+Staff portal > Development Agents > Create New Submission > Import from file >
+DA Import. Start from `import-templates/DA_Import_Template.xlsx` (drop-downs and
+a "How to fill" sheet) or `.csv` (UTF-8). Old `.xls` is not supported.
+
+Each row goes through the platform's ingestion pipeline: the
+`DAImportFileEnricherService` maps headers to fields, labels to codes and
+Region / Zone / Woreda / Kebele names to the Master Data kebele;
+`templates/import_file_to_openg2p_da.json.j2` splits it into the intake
+sections; the row becomes an intake submission with Source `CSV_IMPORT`.
+A row that cannot be used is rejected with a readable reason, recorded in
+`incoming_classified_data` (`transformation_latest_error_code` /
+`ingestion_latest_error_code`); the other rows carry on.
+
+Auto-approve (`register_domain/services/auto_approve.py`, switch
+`DA_AUTO_APPROVE_IMPORTS`, default `true`): a submission created without a
+signed-in user (file import, partner ingestion) skips the AWE workflow and is
+approved straight away, so the DA reaches the register and gets a DA-ID, unless
+its Fayda ID is already registered or already in another live submission. Those
+stay PENDING with the reason in `g2p_intake_form_submissions.remarks` (the staff
+portal does not show it; there is no approval task for them yet). Web intake is
+unchanged: an admin approves it in Tasks.
+
+## DA Services (Frappe) → registry
+
+DA Services pushes each DA it has approved to the partner API
+(`POST /partner/ingest_data?data_model=DA_SERVICES&...`); `DAServicesEnricherService`
+maps its JSON to DA fields (location by Master Data `kebele_id` or names), and
+the record goes through the same template, validation, duplicate guard and
+auto-approve as a file import. The DA Services approver and record id are kept
+(`upstream_approved_by`, `upstream_reference`). DA Services reads DAs back with
+DCI search. Request format, field rules and open items:
+[docs/da-services-api-contract.md](docs/da-services-api-contract.md).
+
+## Run locally
+
+Requires Docker with Compose v2.
+
+```bash
+docker compose up --build -d
+```
+
+Then open the staff portal at http://localhost:3101 and log in as `admin` /
+`admin` (or `staff` / `staff`).
+
+Host ports are chosen to run next to the Frappe DA Service and to avoid TCP
+9000:
+
+| Service | Port |
+|---|---|
+| Staff portal UI | 3101 |
+| Staff API | 8101 |
+| Partner API (DCI) | 8106 |
+| Keycloak | 8090 |
+| IAM | 8120 |
+| AWE / AWE UI | 8130 / 8131 |
+| Master data | 8142 |
+| ID generator | 8050 |
+| MinIO API / console | 9010 / 9011 |
+| Postgres | 5442 |
+| Redis | 6389 |
+
+The geo-seed job loads the Ethiopia geo hierarchy into Master Data; db-seed
+loads the DA metadata and 50 synthetic DAs (`LOAD_SAMPLE_DATA=true`). No real
+personal data is used.
+
+Local-only settings in `docker-compose.yml`: Master Data is read from its
+database (`*_MASTER_DATA_READ_MODE=db`), and DCI search skips partner signature
+and consent checks (`REGISTRY_PARTNER_API_SIGNATURE_VALIDATION_ENABLED` /
+`..._CONSENT_ENFORCEMENT_ENABLED=false`) because the stack has no Partner
+Management or Consent Manager. Keep both checks on in deployments.
+
+## Tests
+
+The extension tests import the platform, so run them inside an image:
+
+```bash
+docker cp da-extension/tests da-registry-staff-api:/tmp/da-tests
+docker exec -w /tmp da-registry-staff-api python -m unittest discover -s /tmp/da-tests -t /tmp
+```
+
+## Platform version
+
+Platform images come from Docker Hub (`openg2p/openg2p-registry-*`), pinned to
+`0.0.0-develop.604`. Keep these in step:
+
+- `ARG RP_VERSION` and `ARG STAFF_UI_VERSION` in the root `Dockerfile`
+- the `STAFF_UI_VERSION` build arg default in `docker-compose.yml`
+- `RP_VERSION` in the `Jenkinsfile`
+- the `openg2p-registry` dependency in `helm/openg2p-da-registry/Chart.yaml`
+  (repository `https://openg2p.github.io/openg2p-helm`)
+- the Master Data image in `docker-compose.yml` (`openg2p/master-data-api:0.0.0-develop.107`):
+  the staff UI reads geo levels from its `/catalogue` API, which 1.1.x lacks
+
+When the version moves, re-check:
+
+- `docker/patches/patch_platform.py`: the build fails if a patch stops matching.
+  Current patches: partner API ingest response (datetime), IAM permission lookup, and the
+  celery worker's database engine (`NullPool`, so no pooled connection crosses the per-task
+  event loops; without it valid records could get stuck behind an invalid one).
+- `*_APPLICATION_REFERENCE_FORMAT` (compose and Helm): four random digits instead of the
+  platform's one, so records arriving in the same second do not collide on the unique index.
+- Celery beat picks `NO_OF_TASKS_TO_PROCESS` (4) records per tick (20 s) per stage, about
+  12 records a minute. Raise these before a large import.
+- `register_domain/factory/g2p_register_domain_factory.py`: registers platform
+  services the celery worker does not; drop names the worker starts registering.

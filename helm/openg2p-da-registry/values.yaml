@@ -1,0 +1,121 @@
+# DA Registry — values overlay for the openg2p-registry chart.
+#
+# This chart owns no templates; everything comes from the openg2p-registry
+# subchart (pinned in Chart.yaml, aliased `registry`) with the overrides below.
+#
+#     helm dependency update ./helm/openg2p-da-registry
+#     helm install da-registry ./helm/openg2p-da-registry
+#
+# NOT YET DEPLOYABLE AS-IS: the DA namespace, public hostnames, image registry
+# and the shared commons services (Postgres, Keycloak, master data, MinIO, AWE)
+# are still to be confirmed with DevOps. Values marked TODO depend on that.
+#
+# Two kinds of override:
+#   * global.*    — Helm propagates these to the subchart (and its subcharts).
+#   * registry.*  — values for the openg2p-registry subchart itself.
+
+# ── Globals (propagate to the openg2p-registry subchart) ──────────────────────
+global:
+  registryVariant: 'da-registry'
+  # TODO(devops): public hostname for this registry.
+  registryHostname: '{{ .Release.Name }}.{{ .Release.Namespace }}.openg2p.org'
+
+  # AWE posts its approval decision straight to the staff API Service rather
+  # than through the public ingress (the farmer deployment learned that an
+  # ingress signed by a private CA breaks this call). The payload is
+  # HMAC-signed, so the in-cluster hop stays authenticated.
+  aweDefaultCallbackUrl: 'http://{{ .Release.Name }}-staff-portal-api/awe/webhooks/decision'
+
+  # Browser-facing MinIO host. Pre-signed URLs are signed for this host, so the
+  # browser and the API must use the same name. TODO(devops): set per environment.
+  # minioHost: 'minio-api.{{ .Release.Namespace }}.openg2p.org'
+  # minioSecure: true
+
+  # TODO(devops): on the shared cluster this is likely
+  # commons-postgresql.commons.svc.cluster.local (as livestock uses).
+  postgresqlHost: commons-postgresql
+  registryDB:  '{{ printf "%s" .Release.Name | replace "-" "_" }}'
+  registryDBPort: 5432
+  registryDBUser: '{{ printf "%s_user" .Release.Name | replace "-" "_" }}'
+  registryDBSecret: '{{ .Release.Name }}'
+  registryDBUserPasswordKey: '{{ .Release.Name }}-db-user'
+  masterDataDB: 'master_data'
+  masterDataDBPort: 5432
+  masterDataDBUser: 'master_data_user'
+  masterDataDBSecret: 'master-data'
+  masterDataDBUserPasswordKey: 'master-data-db-user'
+  # The chart's default is 'api' (MDS catalogue API). DA uses 'db': the file
+  # import enricher resolves Region/Zone/Woreda/Kebele names with direct reads
+  # of the MDS database, and the chart renders the MDS DB settings into the
+  # pods only in db mode. TODO(devops): confirm the MDS DB is reachable.
+  masterDataReadMode: 'db'
+
+# ── openg2p-registry subchart overrides ───────────────────────────────────────
+registry:
+  # DA-built images (each FROM the matching openg2p-registry base image).
+  # TODO(devops): repository = the ECR path the Jenkinsfile pushes to
+  # (<account>.dkr.ecr.ap-south-1.amazonaws.com/openg2p/da-registry/<name>);
+  # CI or the deploy step sets the tag.
+  # *_APPLICATION_REFERENCE_FORMAT: four random digits instead of the platform's one,
+  # so records arriving in the same second do not collide during bulk import.
+  # DA_AUTO_APPROVE_IMPORTS: approve unique DAs from file import / partner
+  # ingestion without a user token (da-extension services/auto_approve.py).
+  staffApi:
+    envVars:
+      DA_AUTO_APPROVE_IMPORTS: "true"
+      REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
+    image:
+      repository: openg2p/da-registry/staff-api
+      tag: develop
+  staffPortalUi:
+    image:
+      repository: openg2p/da-registry/staff-ui
+      tag: develop
+  partnerApi:
+    envVars:
+      DA_AUTO_APPROVE_IMPORTS: "true"
+      REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
+      # DCI expression search: the platform's default fields plus the DA location and position, so DA Services can filter exactly by Woreda / Kebele.
+      REGISTRY_PARTNER_API_DCI_EXPRESSION_ALLOWED_FIELDS: '["functional_record_id","first_name","middle_name","last_name","given_name","gender","birth_date","foundational_id","record_name","record_status","search_text","marital_status","income_level","education_level","residency_status","disability_status","displacement_status","region_name","zone_name","woreda_name","kebele_name","geo_lowest_level_value_id","position","specialisation","upstream_reference"]'
+    image:
+      repository: openg2p/da-registry/partner-api
+      tag: develop
+  celeryWorker:
+    envVars:
+      DA_AUTO_APPROVE_IMPORTS: "true"
+      REGISTRY_CELERY_WORKERS_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
+    image:
+      repository: openg2p/da-registry/celery
+      tag: develop
+  celeryBeat:
+    image:
+      repository: openg2p/da-registry/celery
+      tag: develop
+  dbSeed:
+    image:
+      repository: openg2p/da-registry/db-seed
+      tag: develop
+    # Synthetic DAs are for local dev only. Geography and code lists come from
+    # the Master Data service, not from the registry seed.
+    loadSampleData: false
+    loadImages: false
+    loadTemplates: true
+
+  # Name of this registry's tile in IAM.
+  iamRegister:
+    applicationDescription: "DA Registry"
+
+  # Functional-ID pools, one per register (key = register mnemonic, lowercased).
+  # Helm merges maps, so the subchart's reference pools are still provisioned;
+  # that is harmless.
+  idgenerator:
+    idGenerator:
+      appConfig:
+        idTypes:
+          da:
+            idLength: 10
+
+  # The DA e2e sanity suite does not exist yet; keep the subchart's reference
+  # suite off rather than run it against a register it does not know.
+  sanity:
+    enabled: false
