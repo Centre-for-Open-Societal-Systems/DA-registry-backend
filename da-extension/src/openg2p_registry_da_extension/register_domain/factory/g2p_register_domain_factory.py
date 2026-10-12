@@ -12,8 +12,8 @@ class G2PRegisterDomainFactory(CoreRegisterDomainFactory):
 
     Saving and finalising an intake submission from a worker (file import)
     looks these up with get_component() and fails on None: the staff API's
-    core Initializer registers them, the 0.0.0-develop.604 celery worker's
-    Initializer does not. Core uses this class whenever the extension ships
+    core Initializer registers them, the celery worker's Initializer does not
+    (1.2 registers some of them itself). Core uses this class whenever the extension ships
     it (openg2p_registry_extensions.register_domain.factory), so building it
     is where the gaps get filled. A process that already has a component keeps
     it; in the staff and partner APIs this does nothing.

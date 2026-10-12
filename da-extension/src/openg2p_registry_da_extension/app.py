@@ -9,7 +9,6 @@ _config = Settings.get_config()
 
 from openg2p_fastapi_common.app import Initializer as BaseInitializer
 from openg2p_fastapi_common.context import dbengine
-from openg2p_registry_core.app import _MIGRATION_LOCK_KEY
 from openg2p_registry_core.app import Initializer as CoreInitializer
 from sqlalchemy import text
 
@@ -24,6 +23,11 @@ from .register_domain.services import (
 _logger = logging.getLogger(_config.logging_default_logger_name)
 
 DA_TABLES = ("g2p_register_das", "g2p_register_history_das", "g2p_intake_form_das")
+
+# Several APIs start together and each runs the DA schema steps below, so they
+# take this advisory lock one at a time. Platform 1.2 core no longer exports a
+# migration lock key; this is the value the older core used.
+_MIGRATION_LOCK_KEY = 7428190001
 
 
 class Initializer(BaseInitializer):
@@ -132,7 +136,7 @@ class Initializer(BaseInitializer):
             "kebele_name": "VARCHAR",
         }
         async with dbengine.get().begin() as conn:
-            # Same lock core's migration takes: several APIs start together.
+            # Several APIs start together; run these steps one at a time.
             await conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _MIGRATION_LOCK_KEY})
             for table_name in DA_TABLES:
                 for column_name, column_type in da_columns.items():

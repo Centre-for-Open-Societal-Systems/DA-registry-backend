@@ -4,7 +4,7 @@
 Each entry patches a bug that the pinned platform ships: the IAM permission
 lookup in iam_core, the partner API's ingest response, and the celery worker's
 database pool shared across event loops. (The registry-core async/await fixes
-this script used to carry are in the platform since develop.604.) Applied at
+this script used to carry are in the platform since develop.604 and 1.2.) Applied at
 image build time to every stage that installs registry-core (staff-api,
 partner-api, celery), because the same packages are present in all of them; a
 patch whose file is absent from a stage is skipped.

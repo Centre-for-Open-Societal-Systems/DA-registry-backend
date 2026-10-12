@@ -18,7 +18,7 @@ pipeline {
         // Must match ARG RP_VERSION / STAFF_UI_VERSION in the root Dockerfile
         // and the openg2p-registry dependency in helm/openg2p-da-registry/Chart.yaml.
         // The staff UI is built from the same registry-platform run.
-        RP_VERSION     = "0.0.0-develop.604"
+        RP_VERSION     = "1.2.2-rc.544"
 
         HELM_CHART_DIR = "helm/openg2p-da-registry"
     }

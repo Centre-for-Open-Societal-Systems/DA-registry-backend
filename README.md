@@ -124,15 +124,16 @@ docker exec -w /tmp da-registry-staff-api python -m unittest discover -s /tmp/da
 ## Platform version
 
 Platform images come from Docker Hub (`openg2p/openg2p-registry-*`), pinned to
-`0.0.0-develop.604`. Keep these in step:
+`1.2.2-rc.544`, the same release as the livestock registry. Keep these in step:
 
 - `ARG RP_VERSION` and `ARG STAFF_UI_VERSION` in the root `Dockerfile`
 - the `STAFF_UI_VERSION` build arg default in `docker-compose.yml`
 - `RP_VERSION` in the `Jenkinsfile`
 - the `openg2p-registry` dependency in `helm/openg2p-da-registry/Chart.yaml`
   (repository `https://openg2p.github.io/openg2p-helm`)
-- the Master Data image in `docker-compose.yml` (`openg2p/master-data-api:0.0.0-develop.107`):
-  the staff UI reads geo levels from its `/catalogue` API, which 1.1.x lacks
+- the Master Data image (`openg2p/master-data-api:1.1.0`) and the ID generator image
+  (`openg2p/openg2p-id-generator:1.1.2`) in `docker-compose.yml`, as in the livestock registry.
+  The 1.2 staff UI reads geo levels through Master Data's `/geo/*` API, which 1.1.0 has.
 
 When the version moves, re-check:
 
@@ -146,3 +147,6 @@ When the version moves, re-check:
   12 records a minute. Raise these before a large import.
 - `register_domain/factory/g2p_register_domain_factory.py`: registers platform
   services the celery worker does not; drop names the worker starts registering.
+  From 1.2 the worker builds core's factory itself, so the extension package
+  (`__init__.py`) builds ours in each worker process; without that, imports and
+  DA Services pushes stay PENDING because auto-approve is never installed there.

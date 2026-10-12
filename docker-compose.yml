@@ -169,7 +169,7 @@ services:
     restart: "no"
 
   id-generator:
-    image: ${ID_GENERATOR_IMAGE:-openg2p/openg2p-id-generator:1.0.0}
+    image: ${ID_GENERATOR_IMAGE:-openg2p/openg2p-id-generator:1.1.2}
     platform: linux/amd64
     container_name: da-registry-id-generator
     depends_on:
@@ -325,10 +325,9 @@ services:
 
   # --------------------------------------------------------- master data --
   da-master-data-api:
-    # develop.107 or later: the 0.0.0-develop.604 staff UI reads geo levels from
-    # MDS's /catalogue API, which 1.1.x does not have (the geo section of the
-    # intake form then fails with 404). Move it with RP_VERSION.
-    image: ${MASTER_DATA_API_IMAGE:-openg2p/master-data-api:0.0.0-develop.107}
+    # Same Master Data release as the livestock registry on platform 1.2. The
+    # 1.2 staff UI reads geo levels through its /geo/* API. Move it with RP_VERSION.
+    image: ${MASTER_DATA_API_IMAGE:-openg2p/master-data-api:1.1.0}
     container_name: da-registry-master-data-api
     depends_on:
       <<: *depends-on-infra
@@ -597,7 +596,7 @@ services:
       dockerfile: Dockerfile
       target: staff-ui
       args:
-        STAFF_UI_VERSION: ${REGISTRY_STAFF_PORTAL_UI_VERSION:-0.0.0-develop.604}  # keep equal to RP_VERSION in the Dockerfile
+        STAFF_UI_VERSION: ${REGISTRY_STAFF_PORTAL_UI_VERSION:-1.2.2-rc.544}  # keep equal to RP_VERSION in the Dockerfile
     image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-da-registry-local/staff-ui:dev}
     container_name: da-registry-staff-ui
     extra_hosts:

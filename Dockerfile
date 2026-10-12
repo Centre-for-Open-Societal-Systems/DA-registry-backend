@@ -10,8 +10,8 @@
 # Platform images from Docker Hub (openg2p/openg2p-registry-*), the same
 # source the upstream farmer registry uses. Backend and staff UI come from one
 # registry-platform pipeline run, so keep both on the same build number.
-ARG RP_VERSION=0.0.0-develop.604
-ARG STAFF_UI_VERSION=0.0.0-develop.604
+ARG RP_VERSION=1.2.2-rc.544
+ARG STAFF_UI_VERSION=1.2.2-rc.544
 
 # ---------------------------------------------------------------- staff API
 FROM openg2p/openg2p-registry-staff-api:${RP_VERSION} AS staff-api
