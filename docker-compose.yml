@@ -155,6 +155,7 @@ services:
       KEYCLOAK_REALM: staff
       KEYCLOAK_IAM_CLIENT_SECRET: ${KEYCLOAK_IAM_CLIENT_SECRET:-dev-iam-staff-secret}
       KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET: ${KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET:-dev-awe-resolver-secret}
+      KEYCLOAK_DA_BACKEND_CLIENT_SECRET: ${KEYCLOAK_DA_BACKEND_CLIENT_SECRET:-dev-da-backend-secret}
       KEYCLOAK_DEV_USER: ${KEYCLOAK_DEV_USER:-staff}
       KEYCLOAK_DEV_PASSWORD: ${KEYCLOAK_DEV_PASSWORD:-staff}
       KEYCLOAK_STAFF_ADMIN_USER: ${KEYCLOAK_STAFF_ADMIN_USER:-admin}
@@ -346,6 +347,9 @@ services:
       MASTER_DATA_API_DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       MASTER_DATA_API_DB_DBNAME: da_master_data_db
       MASTER_DATA_API_AUTH_ENABLED: "false"
+      # The registry services call this API server to server (no browser), as
+      # in the livestock registry on platform 1.2.
+      MASTER_DATA_API_CSRF_ENABLED: "false"
       MASTER_DATA_API_AUTH_PROVIDER_API_URL: "http://iam-staff-api:8000"
       MASTER_DATA_API_KEYCLOAK_CLIENT_ID: da-registry-staff-portal
       MASTER_DATA_API_AUTH_REDIS_URL: "redis://redis:6379/0"
@@ -432,6 +436,11 @@ services:
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_PORT: 5432
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_DB_DBNAME: da_master_data_db
       REGISTRY_STAFF_PORTAL_API_MASTER_DATA_READ_MODE: db
+      # Platform 1.2 reads geo hierarchy and code lists through the Master Data API.
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_API_URL: http://da-master-data-api:8000
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/staff/protocol/openid-connect/token
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_CLIENT_ID: da-registry-backend
+      REGISTRY_STAFF_PORTAL_API_MASTER_DATA_CLIENT_SECRET: ${KEYCLOAK_DA_BACKEND_CLIENT_SECRET:-dev-da-backend-secret}
       DA_AUTO_APPROVE_IMPORTS: "true"  # see da-extension .../services/auto_approve.py
       # Application reference: the platform default ends in one random digit, so two records in the same second collide (unique index) during bulk import; four digits.
       REGISTRY_STAFF_PORTAL_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
@@ -493,6 +502,11 @@ services:
       REGISTRY_PARTNER_API_MASTER_DATA_DB_PORT: 5432
       REGISTRY_PARTNER_API_MASTER_DATA_DB_DBNAME: da_master_data_db
       REGISTRY_PARTNER_API_MASTER_DATA_READ_MODE: db
+      # Platform 1.2 reads geo hierarchy and code lists through the Master Data API.
+      REGISTRY_PARTNER_API_MASTER_DATA_API_URL: http://da-master-data-api:8000
+      REGISTRY_PARTNER_API_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/staff/protocol/openid-connect/token
+      REGISTRY_PARTNER_API_MASTER_DATA_CLIENT_ID: da-registry-backend
+      REGISTRY_PARTNER_API_MASTER_DATA_CLIENT_SECRET: ${KEYCLOAK_DA_BACKEND_CLIENT_SECRET:-dev-da-backend-secret}
       DA_AUTO_APPROVE_IMPORTS: "true"  # see da-extension .../services/auto_approve.py
       # Application reference: the platform default ends in one random digit, so two records in the same second collide (unique index) during bulk import; four digits.
       REGISTRY_PARTNER_API_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
@@ -549,6 +563,11 @@ services:
       REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT: 5432
       REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME: da_master_data_db
       REGISTRY_CELERY_WORKERS_MASTER_DATA_READ_MODE: db
+      # Platform 1.2 reads geo hierarchy and code lists through the Master Data API.
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_API_URL: http://da-master-data-api:8000
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_TOKEN_URL: http://keycloak:8080/realms/staff/protocol/openid-connect/token
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_CLIENT_ID: da-registry-backend
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_CLIENT_SECRET: ${KEYCLOAK_DA_BACKEND_CLIENT_SECRET:-dev-da-backend-secret}
       DA_AUTO_APPROVE_IMPORTS: "true"  # see da-extension .../services/auto_approve.py
       # Application reference: the platform default ends in one random digit, so two records in the same second collide (unique index) during bulk import; four digits.
       REGISTRY_CELERY_WORKERS_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"

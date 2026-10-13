@@ -44,11 +44,11 @@ global:
   masterDataDBUser: 'master_data_user'
   masterDataDBSecret: 'master-data'
   masterDataDBUserPasswordKey: 'master-data-db-user'
-  # The chart's default is 'api' (MDS catalogue API). DA uses 'db': the file
-  # import enricher resolves Region/Zone/Woreda/Kebele names with direct reads
-  # of the MDS database, and the chart renders the MDS DB settings into the
-  # pods only in db mode. TODO(devops): confirm the MDS DB is reachable.
-  masterDataReadMode: 'db'
+  # On platform 1.2 the registry pods read Master Data over HTTP
+  # (global.masterDataApiUrl, token from global.pmSeedClientId); the subchart
+  # wires that. The celery worker also gets the MDS database settings below:
+  # the DA import enricher resolves Region/Zone/Woreda/Kebele names with direct
+  # reads of it. TODO(devops): confirm the MDS DB and its secret/key names.
 
 # ── openg2p-registry subchart overrides ───────────────────────────────────────
 registry:
@@ -84,6 +84,16 @@ registry:
     envVars:
       DA_AUTO_APPROVE_IMPORTS: "true"
       REGISTRY_CELERY_WORKERS_APPLICATION_REFERENCE_FORMAT: "{DATE:%Y%b%d|upper}-{SECONDS:5}-{RAND:4}"
+      # Master Data database, read by the DA import enricher (see global above).
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_HOSTNAME: '{{ tpl .Values.global.postgresqlHost $ }}'
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PORT: '{{ .Values.global.masterDataDBPort }}'
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_DBNAME: '{{ tpl .Values.global.masterDataDB $ }}'
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_USERNAME: '{{ tpl .Values.global.masterDataDBUser $ }}'
+    envVarsFrom:
+      REGISTRY_CELERY_WORKERS_MASTER_DATA_DB_PASSWORD:
+        secretKeyRef:
+          name: '{{ tpl .Values.global.masterDataDBSecret $ }}'
+          key: '{{ tpl .Values.global.masterDataDBUserPasswordKey $ }}'
     image:
       repository: openg2p/da-registry/celery
       tag: develop

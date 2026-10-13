@@ -17,6 +17,7 @@ DA_REGISTRY_UI_PORT="${DA_REGISTRY_UI_PORT:-3101}"
 AWE_UI_PORT="${AWE_UI_PORT:-8131}"
 KEYCLOAK_IAM_CLIENT_SECRET="${KEYCLOAK_IAM_CLIENT_SECRET:-dev-iam-staff-secret}"
 KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET="${KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET:-dev-awe-resolver-secret}"
+KEYCLOAK_DA_BACKEND_CLIENT_SECRET="${KEYCLOAK_DA_BACKEND_CLIENT_SECRET:-dev-da-backend-secret}"
 KEYCLOAK_DEV_USER="${KEYCLOAK_DEV_USER:-staff}"
 KEYCLOAK_DEV_PASSWORD="${KEYCLOAK_DEV_PASSWORD:-staff}"
 # AWE demo approvers (Stage 1 / Stage 2) — matches awe_meta_data/30_approver_rule.sql.
@@ -298,6 +299,17 @@ ensure_client "da-registry-staff-portal" \
   -s directAccessGrantsEnabled=true \
   -s 'redirectUris=["http://localhost:'"${DA_REGISTRY_UI_PORT}"'/*"]' \
   -s 'webOrigins=["http://localhost:'"${DA_REGISTRY_UI_PORT}"'"]'
+
+# The DA registry services (staff API, partner API, celery) read geo levels and
+# code lists from the Master Data API with this client's token (client
+# credentials), as the livestock registry does on platform 1.2.
+ensure_client "da-registry-backend" \
+  -s enabled=true \
+  -s publicClient=false \
+  -s secret="${KEYCLOAK_DA_BACKEND_CLIENT_SECRET}" \
+  -s serviceAccountsEnabled=true \
+  -s standardFlowEnabled=false \
+  -s directAccessGrantsEnabled=false
 
 ensure_awe_clients
 

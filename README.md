@@ -134,6 +134,13 @@ Platform images come from Docker Hub (`openg2p/openg2p-registry-*`), pinned to
 - the Master Data image (`openg2p/master-data-api:1.1.0`) and the ID generator image
   (`openg2p/openg2p-id-generator:1.1.2`) in `docker-compose.yml`, as in the livestock registry.
   The 1.2 staff UI reads geo levels through Master Data's `/geo/*` API, which 1.1.0 has.
+- Master Data access: on 1.2 the registry services read geo and code lists over the
+  Master Data API with a client-credentials token (`*_MASTER_DATA_API_URL`, `_TOKEN_URL`,
+  `_CLIENT_ID`, `_CLIENT_SECRET`; locally the `da-registry-backend` Keycloak client). Without
+  it the staff form saves DAs with empty Region / Zone / Woreda / Kebele names. In Helm the
+  subchart sets these from `global.masterDataApiUrl` and `global.pmSeedClientId`; the DA
+  import enricher also reads the Master Data database, so the celery worker gets its
+  `*_MASTER_DATA_DB_*` settings in `values.yaml`.
 
 When the version moves, re-check:
 
