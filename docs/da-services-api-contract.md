@@ -14,8 +14,8 @@ DA Services talks to the registry in two ways:
 - **Staff API**, with the signed-in user's Keycloak token: the single DA form,
   approving or rejecting a new DA, search and view, and a DA editing their
   profile (change request). Roles and Woreda scope are checked by the
-  registry, and approvals happen in the registry. This flow will be
-  documented in a separate section.
+  registry, and approvals happen in the registry. See
+  [da-services-staff-api.md](da-services-staff-api.md).
 
 The browser never calls the registry directly; the Frappe backend makes
 these calls.
@@ -136,7 +136,7 @@ Keep `correlation_id` with the DA in DA Services.
 | Case | Registry outcome | How DA Services finds out |
 |---|---|---|
 | Valid, Fayda ID not yet used | Approved → register → DA-ID (`DA-` + 10 digits) | Status `GENERATED` with `da_id` (§3) |
-| Fayda ID already registered, or in another pending submission | Not approved; held with the reason | Status `EXCEPTION`, `DUPLICATE_IDENTITY` (§3) |
+| Fayda ID already registered, or in another pending submission | Stopped with the reason ("Fayda ID … is already registered as DA-…") | Status `EXCEPTION`, `DUPLICATE_IDENTITY` (§3) |
 | Invalid (format, missing required field, unknown kebele) | Stopped with a reason | Status `EXCEPTION` with the reason (§3) |
 
 So **check duplicates before you push** (§2: search by Fayda ID, and look
@@ -279,7 +279,7 @@ be reachable by DA Services (network policy or gateway).
 
 1. **Updates** (a DA edits their profile): these go through the registry staff
    API as change requests, with the DA's Keycloak token, not through this
-   partner API. That flow is still to be documented.
+   partner API. See [da-services-staff-api.md](da-services-staff-api.md).
 2. **Bulk import:** push one request per DA and pace them (e.g. 1,000–2,000 at a time).
    Throughput still to be load-tested.
 3. Field names above are the registry's proposal; change requests welcome

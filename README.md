@@ -57,11 +57,17 @@ A row that cannot be used is rejected with a readable reason, recorded in
 Auto-approve (`register_domain/services/auto_approve.py`, switch
 `DA_AUTO_APPROVE_IMPORTS`, default `true`): a submission created without a
 signed-in user (file import, partner ingestion) skips the AWE workflow and is
-approved straight away, so the DA reaches the register and gets a DA-ID, unless
-its Fayda ID is already registered or already in another live submission. Those
-stay PENDING with the reason in `g2p_intake_form_submissions.remarks` (the staff
-portal does not show it; there is no approval task for them yet). Web intake is
-unchanged: an admin approves it in Tasks.
+approved straight away, so the DA reaches the register and gets a DA-ID. Web
+intake is unchanged: an approver decides it in Tasks.
+
+One DA per Fayda ID (`register_domain/services/fayda_uniqueness.py`): every save
+of a DA record (web form, file import, DA Services push, change request) is
+refused when its Fayda ID already belongs to an active DA or to another live
+submission, with the reason ("Fayda ID … is already registered as DA-…"). The
+record's own id is left out, so re-saving a section is not a duplicate. Rows of
+one file that race each other are still caught at approval by auto-approve,
+which leaves the later one PENDING with the reason in `remarks`, and finally by
+the unique index on active register rows.
 
 ## DA Services (Frappe) → registry
 

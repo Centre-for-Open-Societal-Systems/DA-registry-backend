@@ -5,6 +5,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 
 from .domain_validation_utils import as_int, parse_date, validation_error
 from .ethiopian_calendar import gregorian_to_ethiopic
+from .fayda_uniqueness import duplicate_message, find_fayda_owner
 from .validation_rules import (
     EMAIL_PATTERN,
     FAYDA_FIN_PATTERN,
@@ -41,6 +42,7 @@ class G2PRegisterDomainServiceDA(G2PRegisterDomainService):
             self._validate_birth_ec(record)
             self._validate_joined_date(record)
             self._validate_required(record)
+            await self._check_fayda_unique(record)
             await self._sync_flattened_geo_names(record)
 
     # ------------------------------------------------------------ validation --
@@ -163,6 +165,18 @@ class G2PRegisterDomainServiceDA(G2PRegisterDomainService):
             validation_error("Required: " + ", ".join(missing))
 
     # ------------------------------------------------------------------ geo --
+    @staticmethod
+    async def _check_fayda_unique(record: dict) -> None:
+        """One DA per Fayda ID: refuse a Fayda ID another DA or another live
+        submission already holds (see fayda_uniqueness)."""
+        fayda_id = record.get("foundational_id")
+        if not fayda_id:
+            return
+        registered, other = await find_fayda_owner(fayda_id, str(record.get("internal_record_id") or ""))
+        message = duplicate_message(fayda_id, registered, other)
+        if message:
+            validation_error(message)
+
     async def _sync_flattened_geo_names(self, record: dict) -> None:
         """Flatten geo_code_hierarchy_json into region/zone/woreda/kebele_name
         so the list view and filters can use plain columns."""
