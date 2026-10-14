@@ -95,14 +95,14 @@ class Initializer(BaseInitializer):
         # which can fire more than once per process.
         await self._migrate_extension_tables()
 
-        # DA push status for DA Services, partner API only. Mounted here because
-        # every initializer builds its own FastAPI app and the partner API's is
-        # the one served; this hook receives that app.
+        # DA push status and exceptions list for DA Services, partner API only.
+        # Mounted here because every initializer builds its own FastAPI app and
+        # the partner API's is the one served; this hook receives that app.
         if "openg2p_registry_partner_api" in sys.modules:
             from .partner_api import DAPushStatusController
 
             app.include_router(DAPushStatusController().router)
-            _logger.info("Mounted GET /partner/da/status")
+            _logger.info("Mounted GET /partner/da/status and /partner/da/exceptions")
 
     def migrate_database(self, args):
         asyncio.run(self._migrate_extension_tables())
