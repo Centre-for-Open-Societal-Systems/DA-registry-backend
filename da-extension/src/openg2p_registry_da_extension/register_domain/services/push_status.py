@@ -29,6 +29,14 @@ GENERATED = "GENERATED"
 EXCEPTION = "EXCEPTION"
 FAILED_RETRY = "FAILED_RETRY"
 
+# exception_type when the record is fine but the registry failed to process it:
+# an approved record not yet written into the register (whatever the message),
+# or a database / connection error at any stage.
+FAILED_SYNC = "FAILED_SYNC"
+
+# Lowercase markers of a technical failure in a stage's error text.
+_SYSTEM_ERROR_MARKERS = ("sqlalchemy", "asyncpg", "psycopg", "deadlock", "connection", "timed out", "timeout")
+
 _DONE = "PROCESSED"
 _FAILED = "FAILED"
 
@@ -39,6 +47,8 @@ def exception_type(reason: Optional[str]) -> Optional[str]:
     if not reason:
         return None
     text_ = reason.lower()
+    if any(marker in text_ for marker in _SYSTEM_ERROR_MARKERS):
+        return FAILED_SYNC
     if "already registered" in text_ or "already in submission" in text_:
         return "DUPLICATE_IDENTITY"
     if "not found in master data" in text_:
@@ -62,8 +72,9 @@ def _failure(status: Optional[str], error: Optional[str]) -> Optional[tuple[str,
 def derive_state(raw: dict, classified: Optional[dict], submission: Optional[dict], register: Optional[dict]) -> dict:
     """State and reason from the rows the pipeline wrote for one push."""
 
-    def result(state, reason=None):
-        return {"state": state, "reason": reason, "exception_type": exception_type(reason) if state != GENERATED else None}
+    def result(state, reason=None, type_=None):
+        kind = None if state == GENERATED else (type_ or exception_type(reason))
+        return {"state": state, "reason": reason, "exception_type": kind}
 
     stage = _failure(raw.get("classification_status"), raw.get("classification_latest_error_code"))
     if stage:
@@ -90,8 +101,9 @@ def derive_state(raw: dict, classified: Optional[dict], submission: Optional[dic
         return result(GENERATED)
     stage = _failure(submission.get("register_ingest_process_status"), submission.get("register_ingest_process_last_error_code"))
     if stage:
-        # Writing an approved record into the register is not a data problem.
-        return result(FAILED_RETRY, stage[1])
+        # Writing an approved record into the register is not a data problem:
+        # the record is fine, it just has not reached the register yet.
+        return result(FAILED_RETRY, stage[1], FAILED_SYNC)
     return result(QUEUED)
 
 

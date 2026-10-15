@@ -9,7 +9,8 @@ DA Services talks to the registry in two ways:
   - **Bulk import:** push each DA from the Admin's Excel file. The registry
     validates it, checks the Fayda ID is unique, approves it automatically
     and gives it a DA-ID.
-  - **Status of a push**, and **DCI search** to look DAs up by DA-ID, Fayda ID
+  - **Status of a push**, the **exceptions list** (every stuck DA, for the
+    exceptions panel), and **DCI search** to look DAs up by DA-ID, Fayda ID
     or name.
 - **Staff API**, with the signed-in user's Keycloak token: the single DA form,
   approving or rejecting a new DA, search and view, and a DA editing their
@@ -251,13 +252,84 @@ returned. Answers 404 when nothing is found, 400 when neither is given.
 | `FAILED_RETRY` | An attempt failed and the registry is retrying | Ask again later |
 
 `exception_type` groups the reason for the exceptions panel:
-`DUPLICATE_IDENTITY`, `INVALID_KEBELE`, `MISSING_MANDATORY_FIELD`,
-`INVALID_FIELD`, `REJECTED`.
+
+| `exception_type` | Meaning |
+|---|---|
+| `DUPLICATE_IDENTITY` | The Fayda ID already belongs to an active DA or a live submission |
+| `INVALID_KEBELE` | The Kebele (or Region / Zone / Woreda name) is not in Master Data |
+| `MISSING_MANDATORY_FIELD` | A required field is empty |
+| `INVALID_FIELD` | A field has a wrong format or value |
+| `REJECTED` | An approver rejected it |
+| `FAILED_SYNC` | The record is fine but the registry failed to process it or write it into the register (database or connection error). The registry retries; no correction needed |
 
 The registry retries every failed step a few times, a validation error
 included, so a bad record shows `FAILED_RETRY` (already with its reason) for a
 few minutes before it settles as `EXCEPTION`. A valid record usually reaches
 `GENERATED` within one to two minutes.
+
+---
+
+## 4. Exceptions list
+
+```
+GET /partner/da/exceptions?source=&exception_type=&state=&page_number=1&page_size=50
+```
+
+Every DA that is stuck, newest first: DA Services pushes and rows of a file
+imported in the registry portal. All filters are optional:
+
+| Parameter | Values |
+|---|---|
+| `source` | `da_services`, `file_import` |
+| `exception_type` | as in §3 |
+| `state` | `EXCEPTION`, `FAILED_RETRY` |
+| `page_number`, `page_size` | from 1; `page_size` 1–200, default 50 |
+
+```json
+{
+  "total_count": 2,
+  "page_number": 1,
+  "page_size": 50,
+  "exceptions": [
+    {
+      "source": "file_import",
+      "correlation_id": "0d9ad8dfee1a4efe956a1ca69be39d0f",
+      "reference_id": null,
+      "fayda_id": "412345678901",
+      "name": "Abebe Kebede",
+      "state": "EXCEPTION",
+      "reason": "Location 'Nowhere' not found in Master Data",
+      "exception_type": "INVALID_KEBELE",
+      "application_reference": null,
+      "received_at": "2026-10-14T09:00:00",
+      "updated_at": null
+    },
+    {
+      "source": "da_services",
+      "correlation_id": "24507f2839fe49c8946a6d80b94c4ea7",
+      "reference_id": "FR-DA-0001",
+      "fayda_id": "804512345611",
+      "name": "Tesfaye Bekele",
+      "state": "EXCEPTION",
+      "reason": "Auto-approval skipped: Fayda ID 804512345611 is already registered as DA-5891503619.",
+      "exception_type": "DUPLICATE_IDENTITY",
+      "application_reference": "2026OCT07-25529-1027",
+      "received_at": "2026-10-07T07:04:55.793904",
+      "updated_at": "2026-10-07T07:05:29.894349"
+    }
+  ]
+}
+```
+
+Each entry reads exactly as `GET /partner/da/status` would report that record.
+Only the latest attempt of a record is listed: once DA Services sends the same
+`reference_id` again (or a file row with the same Fayda ID is imported again)
+and it goes through, the old entry drops off. `correlation_id` works with §3.
+
+Not covered yet: the registry does not record which file and row number an
+imported row came from, so a file-import entry is identified by its Fayda ID
+and name. A resolve action is not part of the API; the fix is to send a
+corrected record.
 
 ---
 
@@ -272,8 +344,9 @@ In deployments the push and the search are checked:
 
 Both are off in the local stack. TODO(devops): register DA Services as a
 partner and agree the consent set-up per environment. The status lookup (§3)
-returns no personal data beyond the DA-ID; in deployments it should still only
-be reachable by DA Services (network policy or gateway).
+returns no personal data beyond the DA-ID; the exceptions list (§4) returns
+Fayda IDs and names. Neither checks a signature, so in deployments both must
+only be reachable by DA Services (network policy or gateway).
 
 ## Open items
 
@@ -281,6 +354,9 @@ be reachable by DA Services (network policy or gateway).
    API as change requests, with the DA's Keycloak token, not through this
    partner API. See [da-services-staff-api.md](da-services-staff-api.md).
 2. **Bulk import:** push one request per DA and pace them (e.g. 1,000–2,000 at a time).
-   Throughput still to be load-tested.
+   Load test (local stack, 500 DAs by file import, default settings): all 500
+   got a DA-ID in 49 minutes, about 10 a minute. The pipeline takes 4 records
+   per stage every 20 s (`NO_OF_TASKS_TO_PROCESS`, celery beat); raise it
+   before a large import.
 3. Field names above are the registry's proposal; change requests welcome
    before DA Services builds against them.

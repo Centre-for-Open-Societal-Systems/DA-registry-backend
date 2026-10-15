@@ -5,6 +5,7 @@ import unittest
 from openg2p_registry_da_extension.register_domain.services.push_status import (
     EXCEPTION,
     FAILED_RETRY,
+    FAILED_SYNC,
     GENERATED,
     QUEUED,
     derive_state,
@@ -63,7 +64,8 @@ class TestDeriveState(unittest.TestCase):
     def test_register_write_failure_is_retry_not_exception(self):
         out = state(submission=dict(APPROVED, register_ingest_process_status="FAILED",
                                     register_ingest_process_last_error_code="connection reset"))
-        self.assertEqual((out["state"], out["reason"]), (FAILED_RETRY, "connection reset"))
+        self.assertEqual((out["state"], out["reason"], out["exception_type"]),
+                         (FAILED_RETRY, "connection reset", FAILED_SYNC))
 
 
 class TestExceptionType(unittest.TestCase):
@@ -73,6 +75,9 @@ class TestExceptionType(unittest.TestCase):
             "Location 'kebele-X' not found in Master Data": "INVALID_KEBELE",
             "Required: Email": "MISSING_MANDATORY_FIELD",
             "Fayda ID (FIN) must be exactly 12 digits": "INVALID_FIELD",
+            "(sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DeadlockDetectedError'>: "
+            "deadlock detected": "FAILED_SYNC",
+            "connection reset": "FAILED_SYNC",
             None: None,
         }
         for reason, kind in cases.items():
