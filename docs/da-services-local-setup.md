@@ -90,11 +90,20 @@ Only `search_criteria.query` (and `pagination`) change between the three.
 |---|---|---|---|
 | DA-ID | `{"search_text": {"$eq": "DA-3500000001"}}` | (default 10) | 1 record, DA-3500000001 |
 | Fayda ID | `{"search_text": {"$eq": "783433844718"}}` | (default 10) | 1 record, DA-3500000001 |
-| Woreda | `{"woreda_name": {"$eq": "Tahtay Adiyabo"}}` | `{"page_size": 2, "page_number": 1}` | 2 records, `total_count` 36 |
+| Woreda | `{"woreda_code": {"$eq": "ET010101"}}` | `{"page_size": 2, "page_number": 1}` | 2 records, `total_count` 41 |
 
 `search_text` is a partial match: check that a returned `da_id` or `fayda_id`
 is exactly the one searched for. Woreda, Kebele, region, zone and position are
 exact filters; combine several in one `query` (AND).
+An empty `query` is rejected (`rjct.search_criteria.invalid`); to list every DA
+send `{"record_status": {"$eq": "ACTIVE"}}`. The full parameter mapping for
+`get_da_list()` is in the contract §2.
+
+Each result carries the location codes (`posting.region_code`, `zone_code`,
+`woreda_code`, `kebele_code`). Filter by code rather than name, since names
+repeat: `{"woreda_code": {"$eq": "ET010101"}}` (41 DAs on the local seed, paged),
+`{"region_code": {"$eq": "ET04"}}`. For the DAs changed since a time:
+`{"last_approved_at": {"$gt": "2026-10-13T00:00:00"}}`.
 
 The answer is under `message.search_response[0]`:
 
@@ -114,7 +123,8 @@ The answer is under `message.search_response[0]`:
     "education_level": "MASTERS", "specialisation": "LIVESTOCK", "position": "DEVELOPMENT_AGENT",
     "joined_date": "2022-02-20", "source": "CSV_IMPORT",
     "posting": {"region": "Oromia", "zone": "Ilu Aba Bora", "woreda": "Darimu", "kebele": "Meti Guda",
-                "geo_lowest_level_value_id": "kebele-ET040301888007"},
+                "region_code": "ET04", "zone_code": "ET0403", "woreda_code": "ET040301",
+                "kebele_code": "ET040301888007", "geo_lowest_level_value_id": "kebele-ET040301888007"},
     "record_status": "ACTIVE", "registration_date": "2026-10-01", "last_updated": "2026-10-01T00:00:00"
   }}]}
 }
@@ -125,8 +135,8 @@ The answer is under `message.search_response[0]`:
 | Asked for | In the registry |
 |---|---|
 | DA-ID, full name and name parts, Fayda ID | Yes (`da_id`, `name.*`, `fayda_id`) |
-| Region / zone / woreda / kebele names, Kebele code | Yes (`posting.*`, `geo_lowest_level_value_id`) |
-| Region / zone / woreda codes | Not yet; the Kebele code identifies the chain |
+| Region / zone / woreda / kebele names | Yes (`posting.region` … `posting.kebele`) |
+| Region / zone / woreda / kebele codes | Yes (`posting.region_code` … `kebele_code`): OCHA P-codes such as `ET04`, `ET0403`, `ET040301`; see the contract §2 |
 | Active status | `record_status` (`ACTIVE`); leave, transfer and separation are not built (FSD Part 2) |
 | Approval status | Only approved DAs are in the register and in DCI; pending ones are intake submissions (staff API) |
 | Phone, email, specialisation, education, joined date | Yes |
@@ -142,4 +152,4 @@ The answer is under `message.search_response[0]`:
   and a pushed duplicate ends as `EXCEPTION` / `DUPLICATE_IDENTITY`.
 - **Change notifications** (registration, approval, profile change) are not set
   up yet. The platform can publish them over WebSub; until then, poll the status
-  API for pushes and `last_updated` for changes.
+  API for pushes and DCI search with `last_approved_at` `$gt` your last run.

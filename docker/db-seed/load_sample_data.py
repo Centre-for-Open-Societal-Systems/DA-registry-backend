@@ -144,13 +144,14 @@ def build_rows(kebeles: list) -> list:
         da_id = f"DA-{3500000001 + i}"
         internal_id = str(uuid.uuid5(NAMESPACE, f"sample-da-{i}"))
 
-        geo_id, hierarchy, names = None, None, flat_names([])
+        geo_id, hierarchy, names, codes = None, None, flat_names([]), flat_codes([])
         if kebeles:
             leaf, chain = kebeles[rnd.randrange(len(kebeles))]
             geo_id = leaf
             hierarchy = {"hierarchy": [{"level_mnemonic": lvl, "level_value_mnemonic": nm,
                                         "level_value_id": vid} for lvl, nm, vid in chain]}
             names = flat_names(chain)
+            codes = flat_codes(chain)
 
         record_name = " ".join([first, father, grandfather])
         search_text = " ".join(x for x in [
@@ -169,8 +170,19 @@ def build_rows(kebeles: list) -> list:
             birth_month_ec, birth_year_ec, mobile, mobile, alternate, email,
             education, spec, position, joined_date, SOURCE,
             names["region"], names["zone"], names["woreda"], names["kebele"],
+            codes["region"], codes["zone"], codes["woreda"],
         ))
     return rows
+
+
+def flat_codes(chain: list) -> dict:
+    """Master Data codes (OCHA P-codes) of region, zone and woreda: the part of
+    each level's id after its type, e.g. "woreda-ET040301" -> "ET040301"."""
+    codes = {"region": None, "zone": None, "woreda": None}
+    for level, _, value_id in chain:
+        if level in codes and value_id:
+            codes[level] = str(value_id).split("-", 1)[-1]
+    return codes
 
 
 COLUMNS = [
@@ -184,6 +196,7 @@ COLUMNS = [
     "birth_month_ec", "birth_year_ec", "mobile_number", "telegram_number", "alternate_number", "email",
     "education_level", "specialisation", "position", "joined_date", "source",
     "region_name", "zone_name", "woreda_name", "kebele_name",
+    "region_code", "zone_code", "woreda_code",
 ]
 
 

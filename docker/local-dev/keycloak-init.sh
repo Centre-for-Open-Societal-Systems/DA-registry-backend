@@ -144,6 +144,37 @@ assign_client_role() {
     --rolename "${role_name}" >/dev/null 2>&1 || true
 }
 
+group_internal_id() {
+  local group_name="$1"
+  "${KCADM}" get groups -r "${KEYCLOAK_REALM}" -q "search=${group_name}" -q "exact=true" --fields id,name 2>/dev/null \
+    | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+    | head -1
+}
+
+ensure_group_with_client_roles() {
+  # ensure_group_with_client_roles <group name> <client id> [<role> ...]
+  # Creates the group when missing and grants it the client roles; members
+  # get the roles through the group. Idempotent.
+  local group_name="$1"
+  local client_id="$2"
+  shift 2
+
+  if [[ -z "$(group_internal_id "${group_name}")" ]]; then
+    echo "[keycloak-init]   + group ${group_name}"
+    "${KCADM}" create groups -r "${KEYCLOAK_REALM}" -s "name=${group_name}" >/dev/null
+  else
+    echo "[keycloak-init]   ~ group ${group_name}"
+  fi
+
+  (( $# )) || return 0
+  local args=()
+  for role in "$@"; do
+    args+=(--rolename "${role}")
+  done
+  "${KCADM}" add-roles -r "${KEYCLOAK_REALM}" --gname "${group_name}" \
+    --cclientid "${client_id}" "${args[@]}" >/dev/null 2>&1 || true
+}
+
 assign_realm_management_role() {
   local service_account_username="$1"
   local role_name="$2"
@@ -316,6 +347,22 @@ ensure_awe_clients
 for role in "${REGISTRY_STAFF_CLIENT_ROLES[@]}"; do
   ensure_client_role "da-registry-staff-portal" "${role}"
 done
+
+# DA Services roles -> DA registry roles (DA-165; docs/rbac-registry-roles.md).
+# A DA Services user is put in the group of their role; the group carries the
+# registry roles. Where a user may act (their Woreda / Zone / Region) is a
+# separate DP_ data-policy role (DA-166, scripts/da-scope-local.sh).
+echo "[keycloak-init] Ensuring DA Services role groups ..."
+ensure_group_with_client_roles "DA Services - Development Agent" "da-registry-staff-portal" \
+  "Data Editor"
+ensure_group_with_client_roles "DA Services - Supervisor" "da-registry-staff-portal" \
+  "Intake Officer" "Intake Validator" "Data Editor" "Data Validator" "Data Supervisor"
+ensure_group_with_client_roles "DA Services - Executive" "da-registry-staff-portal" \
+  "Data Supervisor"
+ensure_group_with_client_roles "DA Services - OAN Administrator" "da-registry-staff-portal" \
+  "Operations Administrator" "Intake Officer" "Intake Validator" "Data Editor" "Data Validator" "Data Supervisor"
+# No registry roles: Communications Officers do not see DA records.
+ensure_group_with_client_roles "DA Services - Communications Officer" "da-registry-staff-portal"
 
 ensure_dev_user
 ensure_staff_admin_user

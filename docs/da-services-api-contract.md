@@ -187,7 +187,9 @@ Content-Type: application/json
   "education_level": "MASTERS", "specialisation": "AGRONOMY", "position": "SENIOR_DA",
   "joined_date": "2017-09-11", "source": "WEB_INTAKE",
   "posting": {"region": "Tigray", "zone": "North Western", "woreda": "Tahtay Adiyabo",
-              "kebele": "Adi Hageray", "geo_lowest_level_value_id": "kebele-ET010101101001"},
+              "kebele": "Adi Hageray", "region_code": "ET01", "zone_code": "ET0101",
+              "woreda_code": "ET010101", "kebele_code": "ET010101101001",
+              "geo_lowest_level_value_id": "kebele-ET010101101001"},
   "record_status": "ACTIVE", "registration_date": "…", "last_updated": "…"
 }
 ```
@@ -196,19 +198,38 @@ Content-Type: application/json
 `fayda_id` equals the Fayda ID you searched for before treating it as a
 duplicate.
 
-### Filter by location or position
+**Location codes.** `region_code`, `zone_code` and `woreda_code` are the OCHA
+P-codes Master Data holds for those levels (`ET04` Oromia, `ET0403` Ilu Aba
+Bora, `ET040301` Darimu); each code starts with its parent's. Kebeles have no
+P-code in Master Data, so `kebele_code` is the Kebele's Master Data id without
+its `kebele-` prefix. Do not derive a Woreda from a Kebele code: Kebele ids do
+not always carry their parents' codes. Use codes, not names, for scoping:
+23 Woreda names and 790 Kebele names repeat across Ethiopia.
+
+### Filter by location, position or change date
 
 Expression queries also take exact filters on these DA fields (several fields
-are combined with AND): `region_name`, `zone_name`, `woreda_name`,
-`kebele_name`, `geo_lowest_level_value_id`, `position`,
-`specialisation`, `upstream_reference`. Operators: `$eq`, `$ne`, `$in`, `$nin`
-(and `$gt`/`$lt`/… on numbers and dates). Use this, not `search_text`, to
-scope a Supervisor to their Woreda:
+are combined with AND): `region_code`, `zone_code`, `woreda_code`,
+`region_name`, `zone_name`, `woreda_name`, `kebele_name`,
+`geo_lowest_level_value_id`, `position`, `specialisation`,
+`upstream_reference`, and `last_approved_at`. Operators: `$eq`, `$ne`, `$in`,
+`$nin` (and `$gt`/`$gte`/`$lt`/`$lte` on numbers and dates). Use the codes, not
+`search_text` or names, to scope a Supervisor to their Woreda:
 
 ```json
 "query": {"type": "expression", "value": {"expression": {"query": {
-  "woreda_name": {"$eq": "Tahtay Adiyabo"},
+  "woreda_code": {"$eq": "ET010101"},
   "position": {"$eq": "SENIOR_DA"}
+}}}}
+```
+
+**Changes since a time.** `last_approved_at` moves when a DA is registered and
+when a change to it is approved, and is returned as `last_updated`. To refresh
+DA Services' view, ask for the DAs changed after the last run:
+
+```json
+"query": {"type": "expression", "value": {"expression": {"query": {
+  "last_approved_at": {"$gt": "2026-10-13T00:00:00"}
 }}}}
 ```
 
@@ -216,6 +237,54 @@ scope a Supervisor to their Woreda:
 Results are paged, 10 by default; add `"pagination": {"page_size": 50,
 "page_number": 1}` to `search_criteria`. Each response carries
 `pagination.total_count`.
+
+### Mapping `get_da_list()` to a DCI query
+
+DA Services' client (`DARegistryClient.get_da_list()`, DA-225) takes
+business names; the registry filters on these fields:
+
+| `get_da_list()` parameter | DCI query field | Value |
+|---|---|---|
+| `woreda` | `woreda_code` | Woreda P-code, e.g. `ET040301` (not `ET04-W01`) |
+| `kebele` | `geo_lowest_level_value_id` | Kebele Master Data id, `kebele-` + kebele code, e.g. `kebele-ET040301888007` |
+| `active_status` | `record_status` | `ACTIVE` |
+| `education_tier` | `education_level` | `CERTIFICATE`, `DIPLOMA`, `DEGREE`, `MASTERS` |
+| `search` | `search_text` | partial match on DA-ID, names, Fayda ID, phone, email |
+| `fayda_status` | none | see below |
+| page / page size | `search_criteria.pagination` | `page_number` from 1; keep `page_size` at 200 or less (no hard cap, but a 1000-row page dropped the connection on the local stack) |
+
+Rules the client has to follow:
+
+- **Empty filters.** The registry rejects an empty expression query
+  (`rjct.search_criteria.invalid`, "expression.query is required and must be
+  non-empty"). To list all DAs send `{"record_status": {"$eq": "ACTIVE"}}`.
+- **`fayda_status`.** The registry has no such field. In phase 1 the registry
+  checks that a Fayda ID is unique, it does not verify it with Fayda (Option B,
+  see the local setup guide §5), so every DA in the register has the same
+  status. Do not send this filter; if DA Services keeps the parameter, answer
+  it on its own side.
+- **Several filters** go in one `query` object and are combined with AND.
+- **`search` is partial.** Check the returned `da_id` or `fayda_id` before
+  treating a hit as an exact match.
+
+The whole mapping in Python:
+
+```python
+FIELD = {"woreda": "woreda_code", "kebele": "geo_lowest_level_value_id",
+         "active_status": "record_status", "education_tier": "education_level",
+         "search": "search_text"}
+
+def dci_query(**filters) -> dict:
+    """get_da_list() filters -> search_criteria.query.value.expression.query"""
+    query = {}
+    for name, value in filters.items():
+        if value in (None, "") or name not in FIELD:
+            continue
+        if name == "kebele" and not str(value).startswith("kebele-"):
+            value = f"kebele-{value}"
+        query[FIELD[name]] = {"$eq": value}
+    return query or {"record_status": {"$eq": "ACTIVE"}}  # empty query is rejected
+```
 
 ---
 

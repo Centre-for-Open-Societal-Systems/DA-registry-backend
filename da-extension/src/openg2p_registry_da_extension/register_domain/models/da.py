@@ -58,6 +58,11 @@ class G2PDA:
     zone_name: Mapped[str] = mapped_column(String, nullable=True)
     woreda_name: Mapped[str] = mapped_column(String, nullable=True)
     kebele_name: Mapped[str] = mapped_column(String, nullable=True)
+    # Master Data codes of the same levels (OCHA P-codes, e.g. ET040301), which
+    # DA Services filters and scopes on; see geo_codes.py.
+    region_code: Mapped[str] = mapped_column(String, nullable=True, index=True)
+    zone_code: Mapped[str] = mapped_column(String, nullable=True, index=True)
+    woreda_code: Mapped[str] = mapped_column(String, nullable=True, index=True)
 
 
 # All Register classes should have the prefix G2PRegister

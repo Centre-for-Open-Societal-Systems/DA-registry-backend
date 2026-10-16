@@ -31,6 +31,8 @@ import psycopg2
 from openg2p_registry_core.interfaces import G2PPayloadEnricherInterface
 from sqlalchemy.orm import Session
 
+from ...geo_codes import geo_codes
+
 _logger = logging.getLogger("g2p-payload-enricher-service")
 
 SOURCE_CSV_IMPORT = "CSV_IMPORT"
@@ -284,6 +286,7 @@ def _build_da_record(row: Dict, source: str, geo: dict) -> Dict:
         "zone_name": names.get("zone"),
         "woreda_name": names.get("woreda"),
         "kebele_name": names.get("kebele"),
+        **geo_codes(geo),
     })
     return out
 

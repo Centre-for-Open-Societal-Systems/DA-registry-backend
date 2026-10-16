@@ -6,6 +6,7 @@ from openg2p_registry_core.services import G2PRegisterDomainService
 from .domain_validation_utils import as_int, parse_date, validation_error
 from .ethiopian_calendar import gregorian_to_ethiopic
 from .fayda_uniqueness import duplicate_message, find_fayda_owner
+from ...geo_codes import geo_codes
 from .validation_rules import (
     EMAIL_PATTERN,
     FAYDA_FIN_PATTERN,
@@ -196,10 +197,15 @@ class G2PRegisterDomainServiceDA(G2PRegisterDomainService):
                 hierarchy = await service.get_geo_hierarchy(level_value_id)
             except Exception as error:  # noqa: BLE001
                 _logger.warning(f"Geo lookup for {level_value_id} failed, keeping stored names: {error}")
+                if record.get("geo_code_hierarchy_json"):
+                    record.update(geo_codes(record["geo_code_hierarchy_json"]))
                 return
             if not (hierarchy or {}).get("hierarchy"):
                 # Lookup failed (e.g. master data not reachable from this
-                # worker): keep whatever names the record already carries.
+                # worker): keep whatever names the record already carries, and
+                # take the codes from the chain the record was saved with.
+                if record.get("geo_code_hierarchy_json"):
+                    record.update(geo_codes(record["geo_code_hierarchy_json"]))
                 return
             for entry in hierarchy["hierarchy"]:
                 mnemonic = (entry.get("level_mnemonic") or "").strip().lower()
@@ -210,6 +216,7 @@ class G2PRegisterDomainServiceDA(G2PRegisterDomainService):
         record["zone_name"] = levels["zone"]
         record["woreda_name"] = levels["woreda"]
         record["kebele_name"] = levels["kebele"]
+        record.update(geo_codes(hierarchy if level_value_id else None))
 
     @staticmethod
     def _geo_display_name(entry: dict) -> str | None:
