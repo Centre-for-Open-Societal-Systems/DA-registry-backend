@@ -134,6 +134,9 @@ class Initializer(BaseInitializer):
             "zone_name": "VARCHAR",
             "woreda_name": "VARCHAR",
             "kebele_name": "VARCHAR",
+            "region_code": "VARCHAR",
+            "zone_code": "VARCHAR",
+            "woreda_code": "VARCHAR",
         }
         async with dbengine.get().begin() as conn:
             # Several APIs start together; run these steps one at a time.
@@ -156,12 +159,29 @@ class Initializer(BaseInitializer):
                 # create_all() adds the model's indexes only to tables it creates;
                 # add this one to tables created before the column existed. Same
                 # name SQLAlchemy uses, so a fresh database gets no second index.
-                await conn.execute(
-                    text(
-                        f'CREATE INDEX IF NOT EXISTS "ix_{table_name}_upstream_reference" '
-                        f'ON "public"."{table_name}" ("upstream_reference")'
+                for indexed in ("upstream_reference", "region_code", "zone_code", "woreda_code"):
+                    await conn.execute(
+                        text(
+                            f'CREATE INDEX IF NOT EXISTS "ix_{table_name}_{indexed}" '
+                            f'ON "public"."{table_name}" ("{indexed}")'
+                        )
                     )
-                )
+                # Fill the location codes of records saved before the columns
+                # existed, from the chain each record carries (see geo_codes.py).
+                # Rows that already have a code are left alone, so this is cheap
+                # after the first run.
+                for level in ("region", "zone", "woreda"):
+                    await conn.execute(
+                        text(
+                            f'UPDATE "public"."{table_name}" t SET "{level}_code" = ('
+                            "SELECT substr(e->>'level_value_id', strpos(e->>'level_value_id', '-') + 1) "
+                            "FROM jsonb_array_elements("
+                            "CASE WHEN jsonb_typeof(t.geo_code_hierarchy_json::jsonb->'hierarchy') = 'array' "
+                            "THEN t.geo_code_hierarchy_json::jsonb->'hierarchy' ELSE '[]'::jsonb END) e "
+                            f"WHERE lower(coalesce(e->>'level_mnemonic', e->>'level')) = '{level}' LIMIT 1) "
+                            f'WHERE t."{level}_code" IS NULL AND t.geo_code_hierarchy_json IS NOT NULL'
+                        )
+                    )
 
             # GET /partner/da/status looks a push up by DA Services' reference_id,
             # which only exists inside the stored request body.

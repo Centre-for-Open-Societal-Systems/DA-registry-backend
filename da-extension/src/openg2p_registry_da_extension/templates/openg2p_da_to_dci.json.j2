@@ -12,6 +12,23 @@
 {%- endif -%}
 {%- endmacro -%}
 
+{#- Master Data location code of one level, from the record's stored chain,
+    for records whose region/zone/woreda_code columns are still empty
+    (geo_code_hierarchy_json). A level's id is its type and P-code, e.g.
+    "woreda-ET040301", so the code is the part after the first "-". Kebele ids
+    do not carry their parents' codes, so each level is read from its own entry. -#}
+{%- macro geo_code(chain, level) -%}
+{%- set ns = namespace(code='') -%}
+{%- if chain is mapping -%}
+{%- for entry in (chain.get('hierarchy') or []) -%}
+{%- if entry is mapping and ((entry.get('level_mnemonic') or entry.get('level') or '') | lower) == level -%}
+{%- set ns.code = ((entry.get('level_value_id') or '') | string).split('-', 1) | last -%}
+{%- endif -%}
+{%- endfor -%}
+{%- endif -%}
+{{- ns.code -}}
+{%- endmacro -%}
+
 {%- set d = expanded -%}
 {%- set da_list = d.get('da') or [] -%}
 {%- set da = d if d.get('foundational_id') is not none or d.get('first_name') is not none or d.get('functional_record_id') is not none else (da_list[0] if da_list else {}) -%}
@@ -47,6 +64,10 @@
       "zone": {{ (da.get('zone_name') or '') | tojson }},
       "woreda": {{ (da.get('woreda_name') or '') | tojson }},
       "kebele": {{ (da.get('kebele_name') or '') | tojson }},
+      "region_code": {{ (da.get('region_code') or geo_code(da.get('geo_code_hierarchy_json'), 'region')) | tojson }},
+      "zone_code": {{ (da.get('zone_code') or geo_code(da.get('geo_code_hierarchy_json'), 'zone')) | tojson }},
+      "woreda_code": {{ (da.get('woreda_code') or geo_code(da.get('geo_code_hierarchy_json'), 'woreda')) | tojson }},
+      "kebele_code": {{ ((da.get('geo_lowest_level_value_id') or '') | string).split('-', 1) | last | tojson }},
       "geo_lowest_level_value_id": {{ (da.get('geo_lowest_level_value_id') or '') | tojson }}
     },
     "record_status": {{ (da.get('record_status') or '') | tojson }},

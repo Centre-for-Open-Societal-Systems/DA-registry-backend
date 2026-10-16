@@ -6,6 +6,7 @@ SET "domain_translation" = (
     COALESCE("domain_translation"::jsonb, '{}'::jsonb)
     || jsonb_build_object(
         'da', 'Development Agents',
+        'da_details', 'DA Details',
         'functional_record_id', 'DA-ID',
         'foundational_id', 'Fayda ID',
         'prefix', 'Salutation',
